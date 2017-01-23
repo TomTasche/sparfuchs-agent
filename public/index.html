@@ -1,7 +1,23 @@
 <link rel="manifest" href="/manifest.json"> hello
 
+<script src="/zepto.min.js"></script>
+
 <script src="https://www.gstatic.com/firebasejs/3.6.6/firebase.js"></script>
 <script>
+    function saveDeviceToken() {
+        var promise = messaging.getToken();
+        promise = promise.then(function(deviceToken) {
+            var requestOptions = {};
+            requestOptions.method = "POST";
+            requestOptions.url = "/user/device?userKey=1234&deviceToken=" + deviceToken;
+
+            var promise = $.ajax(requestOptions);
+            return promise;
+        });
+
+        return promise;
+    }
+
     var config = {
         apiKey: "AIzaSyBWMWMExk-jpZHDUaci6262sej5lEimlug",
         authDomain: "sparfuchs-agent.firebaseapp.com",
@@ -12,17 +28,11 @@
     firebase.initializeApp(config);
 
     var messaging = firebase.messaging();
+    messaging.onTokenRefresh(saveDeviceToken);
 
-    messaging.requestPermission()
-        .then(function() {
-            console.log('Notification permission granted.');
-            // TODO(developer): Retrieve an Instance ID token for use with FCM.
-        })
-        .catch(function(err) {
-            console.log('Unable to get permission to notify.', err);
-        });
+    var promise = messaging.requestPermission();
+    promise = promise.then(saveDeviceToken);
+    promise.catch(console.error);
 
-    messaging.onMessage(function(payload) {
-        console.log("Message received. ", payload);
-    });
+    messaging.onMessage(console.log);
 </script>
