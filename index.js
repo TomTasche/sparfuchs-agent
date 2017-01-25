@@ -1,3 +1,5 @@
+var FIREBASE_SERVER_KEY = "AAAAldscnKM:APA91bFoqbMAKZqqKzW_4B2aJT30PVPlUb231lgVxOt5NjJYn0v-1-nuqtTIgWRcSP1w_vLGvlP1wHkJNCxbPsnYeMrDlmr8991029jLOJ0EH0GSkdKzeLthQquxrkkg4oRNS7aEgcnu";
+
 var serviceAccount = require("./serviceAccountKey.json");
 
 var admin = require("firebase-admin");
@@ -6,8 +8,6 @@ var firebase = admin.initializeApp({
     databaseURL: "https://sparfuchs-agent.firebaseio.com"
 });
 var database = firebase.database();
-
-var FIREBASE_SERVER_KEY = "AAAAldscnKM:APA91bFoqbMAKZqqKzW_4B2aJT30PVPlUb231lgVxOt5NjJYn0v-1-nuqtTIgWRcSP1w_vLGvlP1wHkJNCxbPsnYeMrDlmr8991029jLOJ0EH0GSkdKzeLthQquxrkkg4oRNS7aEgcnu";
 
 var FCM = require("fcm-node");
 var fcm = new FCM(FIREBASE_SERVER_KEY);
@@ -19,6 +19,7 @@ var url = require("url");
 var serve;
 
 var md5 = require("blueimp-md5");
+var request = require("request");
 
 function initializeServer() {
     var http = require("http");
@@ -44,7 +45,7 @@ function onRequest(request, response) {
         var product = {};
         product.key = productKey;
         product.url = productUrl;
-        database.ref("products/" + productKey).update(product);
+        saveProduct(product);
 
         var data = {};
         data[userKey] = true;
@@ -67,6 +68,10 @@ function onRequest(request, response) {
     }
 }
 
+function saveProduct(product) {
+    database.ref("products/" + product.key).update(product);
+}
+
 function keyFromUrl(url) {
     return md5(url);
 }
@@ -78,6 +83,34 @@ function scrapeProducts() {
         for (var productKey in products) {
             var product = products[productKey];
 
+            scrapeProduct(product);
+        }
+    });
+}
+
+function scrapeProduct(product) {
+    var productUrlSplit = product.url.split("/");
+    var productId = productUrlSplit[productUrlSplit.length - 1];
+
+    var apiUrl = "https://shop.billa.at/api/articles/" + productId;
+    request.get(apiUrl, function(error, response, body) {
+        if (error || response.statusCode !== 200) {
+            console.error(error);
+            return;
+        }
+
+        var productData = JSON.parse(body);
+        var productName = productData.name;
+        var productPriceData = productData.vtcPrice || productData.price;
+        var productPrice = productPriceData.final;
+
+        var isInitialProduct = !product.price;
+
+        product.price = productPrice;
+        product.name = productName;
+        saveProduct(product);
+
+        if (!isInitialProduct) {
             sendProduct(product);
         }
     });
@@ -104,8 +137,8 @@ function sendProductToUser(product, userKey) {
         var message = {
             to: user.deviceToken,
             notification: {
-                title: "product price changed!",
-                body: "for product " + product.url
+                title: "price changed for " + product.name,
+                body: "new price is " + product.price + "€"
             }
         };
 

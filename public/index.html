@@ -12,6 +12,8 @@
     <script src="/zepto.min.js"></script>
     <script src="/firebase.js"></script>
     <script>
+        var SERVER_URL = "https://sparfuchs-agent.herokuapp.com";
+
         var messaging;
 
         function initializeFirebase() {
@@ -39,7 +41,7 @@
             promise = promise.then(function(deviceToken) {
                 var requestOptions = {};
                 requestOptions.method = "POST";
-                requestOptions.url = "/user/device?userKey=1234&deviceToken=" + deviceToken;
+                requestOptions.url = SERVER_URL + "/user/device?userKey=1234&deviceToken=" + deviceToken;
 
                 var promise = $.ajax(requestOptions);
                 return promise;
@@ -54,7 +56,7 @@
 
                 var requestOptions = {};
                 requestOptions.method = "POST";
-                requestOptions.url = "/product?userKey=1234&productUrl=" + productUrl;
+                requestOptions.url = SERVER_URL + "/product?userKey=1234&productUrl=" + productUrl;
 
                 var promise = $.ajax(requestOptions);
                 promise.done(console.log);
