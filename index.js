@@ -154,4 +154,4 @@ function sendProductToUser(product, userKey) {
 
 initializeServer();
 
-setInterval(scrapeProducts, 10000);
+setInterval(scrapeProducts, 1000 * 60 * 60 * 24);
