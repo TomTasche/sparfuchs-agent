@@ -1,38 +1,71 @@
-<link rel="manifest" href="/manifest.json"> hello
+<html>
 
-<script src="/zepto.min.js"></script>
+<head>
+    <link rel="manifest" href="/manifest.json">
+</head>
 
-<script src="https://www.gstatic.com/firebasejs/3.6.6/firebase.js"></script>
-<script>
-    function saveDeviceToken() {
-        var promise = messaging.getToken();
-        promise = promise.then(function(deviceToken) {
-            var requestOptions = {};
-            requestOptions.method = "POST";
-            requestOptions.url = "/user/device?userKey=1234&deviceToken=" + deviceToken;
+<body>
+    hello enter product url here: <input type="text" class="input-url"></input>
+    <br />
+    <button class="button-submit">submit</button>
 
-            var promise = $.ajax(requestOptions);
+    <script src="/zepto.min.js"></script>
+    <script src="/firebase.js"></script>
+    <script>
+        var messaging;
+
+        function initializeFirebase() {
+            var config = {
+                apiKey: "AIzaSyBWMWMExk-jpZHDUaci6262sej5lEimlug",
+                authDomain: "sparfuchs-agent.firebaseapp.com",
+                databaseURL: "https://sparfuchs-agent.firebaseio.com",
+                storageBucket: "sparfuchs-agent.appspot.com",
+                messagingSenderId: "643626212515"
+            };
+            firebase.initializeApp(config);
+
+            messaging = firebase.messaging();
+            messaging.onTokenRefresh(saveDeviceToken);
+
+            var promise = messaging.requestPermission();
+            promise = promise.then(saveDeviceToken);
+            promise.catch(console.error);
+
+            messaging.onMessage(console.log);
+        }
+
+        function saveDeviceToken() {
+            var promise = messaging.getToken();
+            promise = promise.then(function(deviceToken) {
+                var requestOptions = {};
+                requestOptions.method = "POST";
+                requestOptions.url = "/user/device?userKey=1234&deviceToken=" + deviceToken;
+
+                var promise = $.ajax(requestOptions);
+                return promise;
+            });
+
             return promise;
-        });
+        }
 
-        return promise;
-    }
+        function initializeUi() {
+            $(".button-submit").click(function() {
+                var productUrl = $(".input-url").val();
 
-    var config = {
-        apiKey: "AIzaSyBWMWMExk-jpZHDUaci6262sej5lEimlug",
-        authDomain: "sparfuchs-agent.firebaseapp.com",
-        databaseURL: "https://sparfuchs-agent.firebaseio.com",
-        storageBucket: "sparfuchs-agent.appspot.com",
-        messagingSenderId: "643626212515"
-    };
-    firebase.initializeApp(config);
+                var requestOptions = {};
+                requestOptions.method = "POST";
+                requestOptions.url = "/product?userKey=1234&productUrl=" + productUrl;
 
-    var messaging = firebase.messaging();
-    messaging.onTokenRefresh(saveDeviceToken);
+                var promise = $.ajax(requestOptions);
+                promise.done(console.log);
+                promise.fail(console.error);
+            });
+        }
 
-    var promise = messaging.requestPermission();
-    promise = promise.then(saveDeviceToken);
-    promise.catch(console.error);
+        initializeFirebase();
 
-    messaging.onMessage(console.log);
-</script>
+        initializeUi();
+    </script>
+</body>
+
+</html>
