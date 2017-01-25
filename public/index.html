@@ -1,20 +1,33 @@
+<!DOCTYPE html>
 <html>
 
 <head>
+    <meta charset="UTF-8">
+
+    <title>Dein Sparfuchs Agent</title>
+
     <link rel="manifest" href="/manifest.json">
+
+    <link type="text/css" rel="stylesheet" href="/firebaseui.css" />
 </head>
 
 <body>
-    hello enter product url here: <input type="text" class="input-url"></input>
-    <br />
-    <button class="button-submit">submit</button>
+    <div class="container-url" style="display: none;">
+        hello enter product url here: <input type="text" class="input-url"></input>
+        <br />
+        <button class="button-submit">submit</button>
+    </div>
+
+    <div id="firebaseui-auth-container" style="display: none;"></div>
 
     <script src="/zepto.min.js"></script>
     <script src="/firebase.js"></script>
+    <script src="/firebaseui.js"></script>
     <script>
         var SERVER_URL = "https://sparfuchs-agent.herokuapp.com";
 
         var messaging;
+        var userKey;
 
         function initializeFirebase() {
             var config = {
@@ -27,13 +40,6 @@
             firebase.initializeApp(config);
 
             messaging = firebase.messaging();
-            messaging.onTokenRefresh(saveDeviceToken);
-
-            var promise = messaging.requestPermission();
-            promise = promise.then(saveDeviceToken);
-            promise.catch(console.error);
-
-            messaging.onMessage(console.log);
         }
 
         function saveDeviceToken() {
@@ -41,7 +47,7 @@
             promise = promise.then(function(deviceToken) {
                 var requestOptions = {};
                 requestOptions.method = "POST";
-                requestOptions.url = SERVER_URL + "/user/device?userKey=1234&deviceToken=" + deviceToken;
+                requestOptions.url = SERVER_URL + "/user/device?userKey=" + userKey + "&deviceToken=" + deviceToken;
 
                 var promise = $.ajax(requestOptions);
                 return promise;
@@ -51,17 +57,51 @@
         }
 
         function initializeUi() {
-            $(".button-submit").click(function() {
+            var urlContainer = $(".container-url");
+            var submitButton = $(".button-submit");
+            submitButton.click(function() {
                 var productUrl = $(".input-url").val();
 
                 var requestOptions = {};
                 requestOptions.method = "POST";
-                requestOptions.url = SERVER_URL + "/product?userKey=1234&productUrl=" + productUrl;
+                requestOptions.url = SERVER_URL + "/product?userKey=" + userKey + "&productUrl=" + productUrl;
 
                 var promise = $.ajax(requestOptions);
                 promise.done(console.log);
                 promise.fail(console.error);
             });
+
+            var uiConfig = {
+                signInSuccessUrl: "/",
+                signInOptions: [
+                    firebase.auth.GoogleAuthProvider.PROVIDER_ID,
+                    firebase.auth.EmailAuthProvider.PROVIDER_ID
+                ]
+            };
+
+            var ui = new firebaseui.auth.AuthUI(firebase.auth());
+            ui.start("#firebaseui-auth-container", uiConfig);
+
+            firebase.auth().onAuthStateChanged(function(user) {
+                urlContainer.toggle(!!user);
+                $("#firebaseui-auth-container").toggle(!user);
+
+                if (user) {
+                    userKey = user.uid;
+
+                    initializeMessaging();
+                }
+            });
+        }
+
+        function initializeMessaging() {
+            messaging.onTokenRefresh(saveDeviceToken);
+
+            var promise = messaging.requestPermission();
+            promise = promise.then(saveDeviceToken);
+            promise.catch(console.error);
+
+            messaging.onMessage(console.log);
         }
 
         initializeFirebase();
