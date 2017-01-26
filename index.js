@@ -34,6 +34,8 @@ function initializeServer() {
 }
 
 function onRequest(request, response) {
+    response.setHeader("Access-Control-Allow-Origin", "*");
+
     var requestUrl = url.parse(request.url, true);
     if ("/product" === requestUrl.pathname) {
         var productId = requestUrl.query.productId;

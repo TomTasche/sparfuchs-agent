@@ -98,7 +98,16 @@
             var search = instantsearch({
                 appId: "BJ54LNRTHZ",
                 apiKey: "03d5f2b94091324b239c4926865a7227",
-                indexName: "products"
+                indexName: "products",
+                searchFunction: function(helper) {
+                    var isValid = !!helper.state.query;
+
+                    $(".container-search-results").toggle(isValid);
+
+                    if (isValid) {
+                        helper.search();
+                    }
+                }
             });
 
             search.addWidget(
