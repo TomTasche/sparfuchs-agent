@@ -18,7 +18,6 @@ var url = require("url");
 
 var serve;
 
-var md5 = require("blueimp-md5");
 var request = require("request");
 
 function initializeServer() {
@@ -37,19 +36,16 @@ function initializeServer() {
 function onRequest(request, response) {
     var requestUrl = url.parse(request.url, true);
     if ("/product" === requestUrl.pathname) {
-        var productUrl = requestUrl.query.productUrl;
+        var productId = requestUrl.query.productId;
         var userKey = requestUrl.query.userKey;
 
-        var productKey = keyFromUrl(productUrl);
-
         var product = {};
-        product.key = productKey;
-        product.url = productUrl;
+        product.id = productId;
         saveProduct(product);
 
         var data = {};
         data[userKey] = true;
-        database.ref("productListeners/" + productKey).update(data);
+        database.ref("productListeners/" + productId).update(data);
 
         response.end();
     } else if ("/user/device" === requestUrl.pathname) {
@@ -63,25 +59,21 @@ function onRequest(request, response) {
 
         response.end();
     } else {
-        // TODO: use firebase for hosting
+        // DEPRECATED: use "firebase serve" instead
         serve(request, response, finalhandler);
     }
 }
 
 function saveProduct(product) {
-    database.ref("products/" + product.key).update(product);
-}
-
-function keyFromUrl(url) {
-    return md5(url);
+    database.ref("products/" + product.id).update(product);
 }
 
 function scrapeProducts() {
     var promise = database.ref("products").once("value");
     promise.then(function(snapshot) {
         var products = snapshot.val();
-        for (var productKey in products) {
-            var product = products[productKey];
+        for (var productId in products) {
+            var product = products[productId];
 
             scrapeProduct(product);
         }
@@ -89,8 +81,7 @@ function scrapeProducts() {
 }
 
 function scrapeProduct(product) {
-    var productUrlSplit = product.url.split("/");
-    var productId = productUrlSplit[productUrlSplit.length - 1];
+    var productId = product.id;
 
     var apiUrl = "https://shop.billa.at/api/articles/" + productId;
     request.get(apiUrl, function(error, response, body) {
@@ -117,9 +108,9 @@ function scrapeProduct(product) {
 }
 
 function sendProduct(product) {
-    var productKey = product.key;
+    var productId = product.id;
 
-    var promise = database.ref("productListeners/" + productKey).once("value");
+    var promise = database.ref("productListeners/" + productId).once("value");
     promise.then(function(snapshot) {
         var listeners = snapshot.val();
 

@@ -9,13 +9,16 @@
     <link rel="manifest" href="/manifest.json">
 
     <link type="text/css" rel="stylesheet" href="/firebaseui.css" />
+    <link type="text/css" rel="stylesheet" href="/instantsearch.min.css" />
 </head>
 
 <body>
     <div class="container-url" style="display: none;">
-        hello enter product url here: <input type="text" class="input-url"></input>
+        enter product url here: <input type="text" class="input-url"></input> <button class="button-submit">submit</button>
+        <br /> OR
         <br />
-        <button class="button-submit">submit</button>
+        <div class="container-search-box"></div>
+        <div class="container-search-results"></div>
     </div>
 
     <div id="firebaseui-auth-container" style="display: none;"></div>
@@ -23,8 +26,10 @@
     <script src="/zepto.min.js"></script>
     <script src="/firebase.js"></script>
     <script src="/firebaseui.js"></script>
+    <script src="/instantsearch.min.js"></script>
     <script>
-        var SERVER_URL = "https://sparfuchs-agent.herokuapp.com";
+        var SERVER_URL = "";
+        SERVER_URL = "https://sparfuchs-agent.herokuapp.com";
 
         var messaging;
         var userKey;
@@ -62,13 +67,10 @@
             submitButton.click(function() {
                 var productUrl = $(".input-url").val();
 
-                var requestOptions = {};
-                requestOptions.method = "POST";
-                requestOptions.url = SERVER_URL + "/product?userKey=" + userKey + "&productUrl=" + productUrl;
+                var productUrlSplit = productUrl.split("/");
+                var productId = productUrlSplit[productUrlSplit.length - 1];
 
-                var promise = $.ajax(requestOptions);
-                promise.done(console.log);
-                promise.fail(console.error);
+                saveProduct(productId);
             });
 
             var uiConfig = {
@@ -92,6 +94,45 @@
                     initializeMessaging();
                 }
             });
+
+            var search = instantsearch({
+                appId: "BJ54LNRTHZ",
+                apiKey: "03d5f2b94091324b239c4926865a7227",
+                indexName: "products"
+            });
+
+            search.addWidget(
+                instantsearch.widgets.searchBox({
+                    container: ".container-search-box",
+                    placeholder: "search for a product"
+                })
+            );
+
+            var noResultsTemplate = "<div>No results found matching <strong>{{query}}</strong>.</div>";
+            var resultTemplate = "<div><strong>{{name}}</strong> for {{price}}€ ({{amount}}) <button onclick=\"saveProduct('{{id}}')\">add to watchlist</button></div>";
+
+            search.addWidget(
+                instantsearch.widgets.hits({
+                    container: ".container-search-results",
+                    hitsPerPage: 20,
+                    templates: {
+                        empty: noResultsTemplate,
+                        item: resultTemplate
+                    }
+                })
+            );
+
+            search.start();
+        }
+
+        function saveProduct(productId) {
+            var requestOptions = {};
+            requestOptions.method = "POST";
+            requestOptions.url = SERVER_URL + "/product?userKey=" + userKey + "&productId=" + productId;
+
+            var promise = $.ajax(requestOptions);
+            promise.done(console.log);
+            promise.fail(console.error);
         }
 
         function initializeMessaging() {
