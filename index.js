@@ -129,13 +129,12 @@ function scrapeProduct(product) {
         var productPriceData = productData.vtcPrice || productData.price;
         var productPrice = productPriceData.final;
 
-        var oldPrice = product.price;
-
         product.price = productPrice;
         product.name = productName;
         saveProduct(product);
 
-        if (oldPrice && oldPrice !== productPrice) {
+        var isOnSale = !!productData.vtcPrice;
+        if (isOnSale) {
             sendProduct(product);
         }
     });
