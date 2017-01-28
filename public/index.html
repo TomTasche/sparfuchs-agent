@@ -13,15 +13,28 @@
 </head>
 
 <body>
-    <div class="container-url" style="display: none;">
-        enter product url here: <input type="text" class="input-url"></input> <button class="button-submit">submit</button>
-        <br /> OR
-        <br />
-        <div class="container-search-box"></div>
-        <div class="container-search-results"></div>
+    <div class="container-ui" style="display: none;">
+        <div class="container-url">
+            enter product url here: <input type="text" class="input-url"></input> <button class="button-submit">submit</button>
+            <br /> OR
+            <br />
+            <div class="container-search-box"></div>
+            <div class="container-search-results"></div>
+        </div>
+
+        <hr />
+
+        <div class="container-products">
+            products on your watchlist:
+            <ul class="list-products"></ul>
+        </div>
     </div>
 
     <div id="firebaseui-auth-container" style="display: none;"></div>
+
+    <script id="template-list-item-product" type="text/html">
+        <li></li>
+    </script>
 
     <script src="/zepto.min.js"></script>
     <script src="/firebase.js"></script>
@@ -62,7 +75,7 @@
         }
 
         function initializeUi() {
-            var urlContainer = $(".container-url");
+            var uiContainer = $(".container-ui");
             var submitButton = $(".button-submit");
             submitButton.click(function() {
                 var productUrl = $(".input-url").val();
@@ -85,13 +98,15 @@
             ui.start("#firebaseui-auth-container", uiConfig);
 
             firebase.auth().onAuthStateChanged(function(user) {
-                urlContainer.toggle(!!user);
+                uiContainer.toggle(!!user);
                 $("#firebaseui-auth-container").toggle(!user);
 
                 if (user) {
                     userKey = user.uid;
 
                     initializeMessaging();
+
+                    fetchProducts();
                 }
             });
 
@@ -136,11 +151,11 @@
 
         function saveProduct(productId) {
             var requestOptions = {};
-            requestOptions.method = "POST";
-            requestOptions.url = SERVER_URL + "/product?userKey=" + userKey + "&productId=" + productId;
+            requestOptions.type = "POST";
+            requestOptions.url = SERVER_URL + "/products?userKey=" + userKey + "&productId=" + productId;
 
             var promise = $.ajax(requestOptions);
-            promise.done(console.log);
+            promise.done(fetchProducts);
             promise.fail(console.error);
         }
 
@@ -152,6 +167,31 @@
             promise.catch(console.error);
 
             messaging.onMessage(console.log);
+        }
+
+        function fetchProducts() {
+            var requestOptions = {};
+            requestOptions.method = "GET";
+            requestOptions.url = SERVER_URL + "/products?userKey=" + userKey;
+
+            var promise = $.ajax(requestOptions);
+            promise.done(function(body) {
+                var products = JSON.parse(body);
+
+                var productTemplate = $("#template-list-item-product").html();
+                var productsContainer = $(".list-products");
+
+                $(".container-products").toggle(!!products.length);
+
+                for (var i = 0; i < products.length; i++) {
+                    var product = products[i];
+
+                    var productElement = $(productTemplate);
+                    productElement.text(product.name);
+                    productsContainer.append(productElement);
+                }
+            });
+            promise.fail(console.error);
         }
 
         initializeFirebase();

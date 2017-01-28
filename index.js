@@ -37,19 +37,47 @@ function onRequest(request, response) {
     response.setHeader("Access-Control-Allow-Origin", "*");
 
     var requestUrl = url.parse(request.url, true);
-    if ("/product" === requestUrl.pathname) {
-        var productId = requestUrl.query.productId;
+    if ("/products" === requestUrl.pathname) {
         var userKey = requestUrl.query.userKey;
+        if ("POST" === request.method) {
+            var productId = requestUrl.query.productId;
 
-        var product = {};
-        product.id = productId;
-        saveProduct(product);
+            var product = {};
+            product.id = productId;
+            saveProduct(product);
 
-        var data = {};
-        data[userKey] = true;
-        database.ref("productListeners/" + productId).update(data);
+            var productUserData = {};
+            productUserData[userKey] = true;
+            database.ref("productUsers/" + productId).update(productUserData);
 
-        response.end();
+            var userProductsData = {};
+            userProductsData[productId] = true;
+            database.ref("userProducts/" + userKey).update(userProductsData);
+
+            response.end();
+        } else {
+            var promise = database.ref("userProducts/" + userKey).once("value");
+            promise.then(function(snapshot) {
+                var products = snapshot.val();
+                var productIds = Object.keys(products);
+
+                var promise = database.ref("products").once("value");
+                promise.then(function(snapshot) {
+                    var products = snapshot.val();
+
+                    var result = [];
+                    for (var i = 0; i < productIds.length; i++) {
+                        var productId = productIds[i];
+
+                        var product = products[productId];
+                        result.push(product);
+                    }
+
+                    response.write(JSON.stringify(result));
+                    response.end();
+                });
+            });
+        }
     } else if ("/user/device" === requestUrl.pathname) {
         var userKey = requestUrl.query.userKey;
         var deviceToken = requestUrl.query.deviceToken;
@@ -58,6 +86,10 @@ function onRequest(request, response) {
         data.key = userKey;
         data.deviceToken = deviceToken;
         database.ref("users/" + userKey).update(data);
+
+        response.end();
+    } else if ("/update" === requestUrl.pathname) {
+        scrapeProducts();
 
         response.end();
     } else {
@@ -112,7 +144,7 @@ function scrapeProduct(product) {
 function sendProduct(product) {
     var productId = product.id;
 
-    var promise = database.ref("productListeners/" + productId).once("value");
+    var promise = database.ref("productUsers/" + productId).once("value");
     promise.then(function(snapshot) {
         var listeners = snapshot.val();
 
