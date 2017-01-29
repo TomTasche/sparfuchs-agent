@@ -1,24 +1,10 @@
-var FIREBASE_SERVER_KEY = "AAAAldscnKM:APA91bFoqbMAKZqqKzW_4B2aJT30PVPlUb231lgVxOt5NjJYn0v-1-nuqtTIgWRcSP1w_vLGvlP1wHkJNCxbPsnYeMrDlmr8991029jLOJ0EH0GSkdKzeLthQquxrkkg4oRNS7aEgcnu";
-
-var serviceAccount = require("./serviceAccountKey.json");
-
-var admin = require("firebase-admin");
-var firebase = admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    databaseURL: "https://sparfuchs-agent.firebaseio.com"
-});
-var database = firebase.database();
-
-var FCM = require("fcm-node");
-var fcm = new FCM(FIREBASE_SERVER_KEY);
-
 var finalhandler = require("finalhandler");
 var serveStatic = require("serve-static");
 var url = require("url");
 
-var serve;
+var FirebaseBridge = require("./firebase-bridge");
 
-var request = require("request");
+var serve;
 
 function initializeServer() {
     var http = require("http");
@@ -42,29 +28,16 @@ function onRequest(request, response) {
         if ("POST" === request.method) {
             var productId = requestUrl.query.productId;
 
-            var product = {};
-            product.id = productId;
-            saveProduct(product);
-
-            var productUserData = {};
-            productUserData[userKey] = true;
-            database.ref("productUsers/" + productId).update(productUserData);
-
-            var userProductsData = {};
-            userProductsData[productId] = true;
-            database.ref("userProducts/" + userKey).update(userProductsData);
-
-            response.end();
+            var promise = FirebaseBridge.saveProductUser(productId, userKey);
+            promise.then(FirebaseBridge.saveUserProduct.bind(this, userKey, productId));
+            promise.then(response.end.bind(response));
         } else {
-            var promise = database.ref("userProducts/" + userKey).once("value");
-            promise.then(function(snapshot) {
-                var products = snapshot.val();
-                var productIds = Object.keys(products);
+            var promise = FirebaseBridge.fetchUserProducts(userKey);
+            promise.then(function(userProducts) {
+                var productIds = Object.keys(userProducts);
 
-                var promise = database.ref("products").once("value");
-                promise.then(function(snapshot) {
-                    var products = snapshot.val();
-
+                var promise = FirebaseBridge.fetchProducts();
+                promise.then(function(products) {
                     var result = [];
                     for (var i = 0; i < productIds.length; i++) {
                         var productId = productIds[i];
@@ -85,11 +58,8 @@ function onRequest(request, response) {
         var data = {};
         data.key = userKey;
         data.deviceToken = deviceToken;
-        database.ref("users/" + userKey).update(data);
 
-        response.end();
-    } else if ("/update" === requestUrl.pathname) {
-        scrapeProducts();
+        FirebaseBridge.saveUser(data);
 
         response.end();
     } else {
@@ -98,84 +68,4 @@ function onRequest(request, response) {
     }
 }
 
-function saveProduct(product) {
-    database.ref("products/" + product.id).update(product);
-}
-
-function scrapeProducts() {
-    var promise = database.ref("products").once("value");
-    promise.then(function(snapshot) {
-        var products = snapshot.val();
-        for (var productId in products) {
-            var product = products[productId];
-
-            scrapeProduct(product);
-        }
-    });
-}
-
-function scrapeProduct(product) {
-    var productId = product.id;
-
-    var apiUrl = "https://shop.billa.at/api/articles/" + productId;
-    request.get(apiUrl, function(error, response, body) {
-        if (error || response.statusCode !== 200) {
-            console.error(error);
-            return;
-        }
-
-        var productData = JSON.parse(body);
-        var productName = productData.name;
-        var productPriceData = productData.vtcPrice || productData.price;
-        var productPrice = productPriceData.final;
-
-        product.price = productPrice;
-        product.name = productName;
-        saveProduct(product);
-
-        var isOnSale = !!productData.vtcPrice;
-        if (isOnSale) {
-            sendProduct(product);
-        }
-    });
-}
-
-function sendProduct(product) {
-    var productId = product.id;
-
-    var promise = database.ref("productUsers/" + productId).once("value");
-    promise.then(function(snapshot) {
-        var listeners = snapshot.val();
-
-        for (userKey in listeners) {
-            sendProductToUser(product, userKey);
-        }
-    });
-}
-
-function sendProductToUser(product, userKey) {
-    var promise = database.ref("users/" + userKey).once("value");
-    promise.then(function(snapshot) {
-        var user = snapshot.val();
-
-        var message = {
-            to: user.deviceToken,
-            notification: {
-                title: "price changed for " + product.name,
-                body: "new price is " + product.price + "€"
-            }
-        };
-
-        fcm.send(message, function(error, response) {
-            if (error) {
-                console.log("Something has gone wrong!");
-            } else {
-                console.log("Successfully sent with response: ", response);
-            }
-        });
-    });
-}
-
 initializeServer();
-
-scrapeProducts();

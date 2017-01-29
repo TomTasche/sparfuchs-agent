@@ -1,48 +1,106 @@
-var algoliasearch = require("algoliasearch");
+var moment = require("moment");
 
-var client = algoliasearch("BJ54LNRTHZ", "6d3f44bce42e186f9c3ad5ac9f76d9c3");
-var index = client.initIndex("products");
+var HttpBridge = require("./http-bridge");
+var AlgoliaBridge = require("./algolia-bridge");
+var FirebaseBridge = require("./firebase-bridge");
+var CloudMessagingBridge = require("./cloud-messaging-bridge");
 
-var request = require("request");
+function scrapeProducts() {
+    var apiUrl = "https://shop.billa.at/api/search/full?category=B2&pageSize=9175&isFirstPage=true&isLastPage=true";
 
-var serviceAccount = require("./serviceAccountKey.json");
+    var promise = HttpBridge.fetch(apiUrl);
+    promise = promise.then(function(responseObject) {
+        var products = [];
+        var productDatas = responseObject.tiles;
+        for (var i = 0; i < productDatas.length; i++) {
+            var productData = productDatas[i].data;
 
-var admin = require("firebase-admin");
-var firebase = admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    databaseURL: "https://sparfuchs-agent.firebaseio.com"
-});
-var database = firebase.database();
+            var productName = productData.name;
+            var productId = productData.articleId;
+            var productAmount = productData.grammage;
+            var productPrice = productData.price.normal;
 
-var apiUrl = "https://shop.billa.at/api/search/full?category=B2&pageSize=9175&isFirstPage=true&isLastPage=true";
-request.get(apiUrl, function(error, response, body) {
-    if (error || response.statusCode !== 200) {
-        console.error(error);
-        return;
-    }
+            var productSalePrice;
+            if (productData.vtcPrice) {
+                productSalePrice = productData.vtcPrice.sale;
+            }
 
-    var products = [];
-    var productDatas = JSON.parse(body).tiles;
-    for (var i = 0; i < productDatas.length; i++) {
-        var productData = productDatas[i].data;
+            var product = {};
+            product.name = productName;
+            product.id = productId;
+            product.amount = productAmount;
+            product.price = productPrice;
+            product.salePrice = productSalePrice;
 
-        var productName = productData.name;
-        var productId = productData.articleId;
-        var productAmount = productData.grammage;
-        var productPrice = productData.price.normal;
+            products.push(product);
+        }
 
-        var product = {};
-        product.name = productName;
-        product.id = productId;
-        product.amount = productAmount;
-        product.price = productPrice;
+        var promise = FirebaseBridge.deleteProducts();
+        promise = promise.then(FirebaseBridge.saveProducts.bind(this, products));
 
-        products.push(product);
-    }
+        var nowMoment = moment.utc();
+        // only 10k operations per month on algolia allowed
+        if (nowMoment.date() === 1) {
+            promise = promise.then(AlgoliaBridge.clearIndex);
+            promise = promise.then(AlgoliaBridge.populateIndex.bind(this, products));
+        }
 
-    var promise = index.deleteByQuery("");
-    promise = promise.then(index.addObjects.bind(index, products));
+        promise = promise.then(sendProducts);
 
-    promise.then(process.exit.bind(this, 0));
-    promise.catch(process.exit.bind(this, 1));
-});
+        return promise;
+    });
+
+    promise.catch(console.error);
+}
+
+function sendProducts() {
+    var promise = FirebaseBridge.fetchProducts();
+    promise = promise.then(function(products) {
+        for (var productId in products) {
+            var product = products[productId];
+            if (!product.salePrice || product.price === product.salePrice) {
+                continue;
+            }
+
+            sendProduct(product);
+        }
+    });
+
+    promise.catch(console.error);
+}
+
+function sendProduct(product) {
+    var productId = product.id;
+
+    var promise = FirebaseBridge.fetchProductUsers(productId);
+    promise.then(function(listeners) {
+        for (userKey in listeners) {
+            sendProductToUser(product, userKey);
+        }
+    });
+
+    promise.catch(console.error);
+}
+
+function sendProductToUser(product, userKey) {
+    var promise = FirebaseBridge.fetchUser(userKey);
+    promise.then(function(user) {
+        var message = {
+            to: user.deviceToken,
+            notification: {
+                title: "price changed for " + product.name,
+                body: "new price is " + product.price + "€"
+            }
+        };
+
+        var promise = CloudMessagingBridge.send(message);
+        return promise;
+    });
+
+    promise.catch(console.error);
+}
+
+var nowMoment = moment.utc();
+if (nowMoment.day() === 3) {
+    scrapeProducts();
+}
