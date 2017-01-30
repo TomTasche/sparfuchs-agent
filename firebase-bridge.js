@@ -56,7 +56,7 @@ function saveProducts(productsArray) {
 }
 
 function saveUser(user) {
-    var promise = save("users/" + userKey, user);
+    var promise = save("users/" + user.key, user);
     return promise;
 }
 
@@ -88,6 +88,7 @@ bridge.fetchUser = fetchUser;
 bridge.fetchUserProducts = fetchUserProducts;
 bridge.deleteProducts = deleteProducts;
 bridge.saveProducts = saveProducts;
+bridge.saveUser = saveUser;
 bridge.saveProductUser = saveProductUser;
 bridge.saveUserProduct = saveUserProduct;
 

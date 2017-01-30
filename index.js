@@ -55,9 +55,12 @@ function onRequest(request, response) {
         var userKey = requestUrl.query.userKey;
         var deviceToken = requestUrl.query.deviceToken;
 
+        var deviceTokens = {};
+        deviceTokens[deviceToken] = true;
+
         var data = {};
         data.key = userKey;
-        data.deviceToken = deviceToken;
+        data.deviceTokens = deviceTokens;
 
         FirebaseBridge.saveUser(data);
 

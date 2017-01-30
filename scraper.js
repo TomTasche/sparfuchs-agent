@@ -40,7 +40,7 @@ function scrapeProducts() {
 
         var nowMoment = moment.utc();
         // only 10k operations per month on algolia allowed
-        if (nowMoment.date() === 1) {
+        if (nowMoment.date() === 30) {
             promise = promise.then(AlgoliaBridge.clearIndex);
             promise = promise.then(AlgoliaBridge.populateIndex.bind(this, products));
         }
@@ -84,17 +84,18 @@ function sendProduct(product) {
 
 function sendProductToUser(product, userKey) {
     var promise = FirebaseBridge.fetchUser(userKey);
-    promise.then(function(user) {
-        var message = {
-            to: user.deviceToken,
-            notification: {
-                title: "price changed for " + product.name,
-                body: "new price is " + product.price + "€"
-            }
-        };
+    promise = promise.then(function(user) {
+        for (var deviceToken in user.deviceTokens) {
+            var message = {
+                to: deviceToken,
+                notification: {
+                    title: "price changed for " + product.name,
+                    body: "new price is " + product.price + "€"
+                }
+            };
 
-        var promise = CloudMessagingBridge.send(message);
-        return promise;
+            CloudMessagingBridge.send(message);
+        }
     });
 
     promise.catch(console.error);
