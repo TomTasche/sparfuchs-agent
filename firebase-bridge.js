@@ -56,7 +56,12 @@ function saveProducts(productsArray) {
 }
 
 function saveUser(user) {
+    var deviceTokens = user.deviceTokens;
+    delete user.deviceTokens;
+
     var promise = save("users/" + user.key, user);
+    promise.then(save.bind(this, "users/" + user.key + "/deviceTokens", deviceTokens));
+
     return promise;
 }
 
