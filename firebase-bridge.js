@@ -86,6 +86,11 @@ function save(key, data) {
     return promise;
 }
 
+function close() {
+    var promise = admin.apps[0].delete();
+    return promise;
+}
+
 var bridge = {};
 bridge.fetchProducts = fetchProducts;
 bridge.fetchProductUsers = fetchProductUsers;
@@ -96,5 +101,6 @@ bridge.saveProducts = saveProducts;
 bridge.saveUser = saveUser;
 bridge.saveProductUser = saveProductUser;
 bridge.saveUserProduct = saveUserProduct;
+bridge.close = close;
 
 module.exports = bridge;

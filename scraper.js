@@ -39,7 +39,6 @@ function scrapeProducts() {
         promise = promise.then(FirebaseBridge.saveProducts.bind(this, products));
 
         var nowMoment = moment.utc();
-        // only 10k operations per month on algolia allowed
         if (nowMoment.date() === 30) {
             promise = promise.then(AlgoliaBridge.clearIndex);
             promise = promise.then(AlgoliaBridge.populateIndex.bind(this, products));
@@ -49,6 +48,9 @@ function scrapeProducts() {
 
         return promise;
     });
+
+    promise = promise.then(AlgoliaBridge.close);
+    promise = promise.then(FirebaseBridge.close);
 
     promise.catch(console.error);
 }
